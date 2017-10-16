@@ -105,9 +105,9 @@
     (println (format "Writing %s" f))
     (spit f (json/write-str payload))))
 
-(defn gen-dataset [filename concurrency base]
+(defn gen-dataset [filename concurrency base qargs]
   (println "Starting main thread")
-  (let [out-ch (->> (fetch-basic base (range 97 100))
+  (let [out-ch (->> (fetch-basic base qargs)
                     (fetch-details concurrency))]
     (loop [total 0
            acc []]
@@ -119,17 +119,22 @@
 	  (println (format "Processed %d total records" total))
 	  (write filename (flatten acc)))))))
 
+;;; RUNNER
 
-;;; TEST
+(defn parse-qargs [in]
+  (let [[a b] (doall (map read-string (clojure.string/split in #",")))]
+    (range a (inc b))))
 
 (defn -main
  [& args]
  (try
    (let [concurrency (read-string (nth args 0))
-         filename (nth args 1)]
+         filename (nth args 1)
+         qargs (parse-qargs (nth args 2))]
      (println (format "CONCURRENCY=%d" concurrency))
      (println (format "FILENAME=%s" filename))
-     (gen-dataset filename concurrency endpoint))
+     (println (format "QARGS=%s" qargs))
+     (gen-dataset filename concurrency endpoint qargs))
    (finally
      (shutdown-agents))))
 
