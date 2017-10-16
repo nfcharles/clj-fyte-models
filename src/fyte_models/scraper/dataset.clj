@@ -38,22 +38,26 @@
 
 (defn elements [endpoint c]
   (let [dom (fyte-core/fetch (gen-url endpoint c))]
-    (println dom)
+    ;(println dom)
     (map vector (links dom)
                 (partition 11 (html/select dom [:tr.b-statistics__table-row :td.b-statistics__table-col])))))
 
 (defn task [row]
-  (let [[link elems] row
-        dom (fyte-core/fetch link)
-        names (fyte-core/names (take 3 elems))
-	basic (fyte-core/basic-info (take-last 8 elems))
-        matches (fyte-details/matches dom)]
-    (when (or (= matches []) (nil? matches))
-      (println (format ">>>>> LINK <<<<< %s" link))
-      (println "DOM")
-      (println dom)
-      (pprint/pprint names))
-    (merge names basic {"matches" matches})))
+  (try
+    (let [[link elems] row
+          dom (fyte-core/fetch link)
+          names (fyte-core/names (take 3 elems))
+          basic (fyte-core/basic-info (take-last 8 elems))
+          matches (fyte-details/matches dom)]
+      (when (or (= matches []) (nil? matches))
+        (println (format ">>>>> LINK <<<<< %s" link))
+        (pprint/pprint names))
+      (merge names basic {"matches" matches}))
+    (catch Exception e
+      (println (format "TASK EXCEPTION: %s" e)))))
+
+(defn assert-noerr [_]
+  (if (nil? _) (System/exit 99) _))
 
 (defn dequeue [csvc n]
   (loop [i 0
@@ -61,6 +65,7 @@
     (if (< i n)
       (->> (.take csvc)
            (.get)
+           (assert-noerr)
            (conj acc)
            (recur (inc i)))
       acc)))
