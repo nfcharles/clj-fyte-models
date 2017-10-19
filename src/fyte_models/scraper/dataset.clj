@@ -5,27 +5,29 @@
             [clojure.core.async :as async]
             [org.httpkit.client :as http]
             [fyte-models.scraper.details :as fyte-details]
-            [fyte-models.scraper.core :as fyte-core]	    
+            [fyte-models.scraper.util :as fyte-util]
+            [fyte-models.macro :refer [with-pool]]
             [net.cgrand.enlive-html :as html])
   (import [java.net URL]
           [java.util.concurrent Executors ExecutorCompletionService])
   (:gen-class))
 
 
-(defmacro with-pool [bindings & body]
-  "(with-pool [pool (...)]
-      (let [completion-service (... pool)]
-        ))"
-  (assert (vector? bindings) "vector required for bindings")
-  (assert (== (count bindings) 2) "one binding pair expected")
-  (assert (symbol? (bindings 0)) "only symbol allowed in binding")
-  `(let ~(subvec bindings 0 2)
-     (try
-       ~@body
-       (finally
-         (.shutdown ~(bindings 0))))))
+(defn names [dom]
+  (loop [source (map html/text (html/select dom [:a]))
+         labels ["first" "last" "alias"]
+         acc {}]
+    (if-let [src (first source)]
+      (recur (rest source) (rest labels) (assoc acc (first labels) src))
+      acc)))
 
-(def endpoint "http://www.fightmetric.com/statistics/fighters")
+(defn basic-info [dom]
+  (loop [source (map #(fyte-util/deser (html/text %)) dom)
+         labels ["ht" "wt" "reach" "stance" "w" "l" "d" "belt"]
+         acc {}]
+    (if-let [src (first source)]
+      (recur (rest source) (rest labels) (assoc acc (first labels) src))
+      acc)))
 
 (defn gen-url [base suffix]
   (let [url (format "%s?char=%s&page=all" base suffix)]
@@ -37,17 +39,16 @@
               (html/select dom [:tr.b-statistics__table-row html/first-child :a]))))
 
 (defn elements [endpoint c]
-  (let [dom (fyte-core/fetch (gen-url endpoint c))]
-    ;(println dom)
+  (let [dom (fyte-util/fetch (gen-url endpoint c))]
     (map vector (links dom)
                 (partition 11 (html/select dom [:tr.b-statistics__table-row :td.b-statistics__table-col])))))
 
 (defn task [row]
   (try
     (let [[link elems] row
-          dom (fyte-core/fetch link)
-          names (fyte-core/names (take 3 elems))
-          basic (fyte-core/basic-info (take-last 8 elems))
+          dom (fyte-util/fetch link)
+          names (names (take 3 elems))
+          basic (basic-info (take-last 8 elems))
           matches (fyte-details/matches dom)]
       (when (or (= matches []) (nil? matches))
         (println (format ">>>>> LINK <<<<< %s" link))
@@ -100,10 +101,9 @@
 	  (async/close! out-ch))))
     out-ch))
         
-(defn write [name payload]
-  (let [f (format "/tmp/%s" name)]
-    (println (format "Writing %s" f))
-    (spit f (json/write-str payload))))
+(defn write [path payload]
+  (println (format "Writing %s" path))
+  (spit path (json/write-str payload)))
 
 (defn gen-dataset [filename concurrency base qargs]
   (println "Starting main thread")
@@ -121,6 +121,8 @@
 
 ;;; RUNNER
 
+(def endpoint "http://www.fightmetric.com/statistics/fighters")
+
 (defn parse-qargs [in]
   (let [[a b] (doall (map read-string (clojure.string/split in #",")))]
     (range a (inc b))))
@@ -137,5 +139,3 @@
      (gen-dataset filename concurrency endpoint qargs))
    (finally
      (shutdown-agents))))
-
-	  

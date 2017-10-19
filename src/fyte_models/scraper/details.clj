@@ -22,7 +22,6 @@
        (first)
        (html/text)))
 
-
 (defn ftr [dom]
   (->> (html/select dom [[:p (html/nth-of-type 2)] :a])
        (first)
