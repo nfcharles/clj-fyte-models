@@ -22,6 +22,13 @@
        (first)
        (html/text)))
 
+(defn uid [dom]
+  (let [href (->> (html/select dom [[:p (html/nth-of-type 2)] :a])
+                  first
+		  :attrs
+		  :href)]
+    (last (re-find #"/(\w+)$" href))))
+
 (defn ftr [dom]
   (->> (html/select dom [[:p (html/nth-of-type 2)] :a])
        (first)
@@ -107,7 +114,8 @@
 		                    (tdn (nth row 3))
 				    (sub (nth row 4))
 				    (pss (nth row 5)))
-	        coll {"res" stat
+	        coll {"id"  (uid (nth row 1))
+                      "res" stat
                       "ftr" (ftr (nth row 1))
                       "mtx" (metrics f1 f2)
                       "evt" (evt (nth row 6))

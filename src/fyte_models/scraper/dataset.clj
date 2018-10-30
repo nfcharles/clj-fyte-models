@@ -13,10 +13,10 @@
   (:gen-class))
 
 
-(defn names [dom]
+(defn names [id dom]
   (loop [source (map html/text (html/select dom [:a]))
          labels ["first" "last" "alias"]
-         acc {}]
+         acc {"id" id}]
     (if-let [src (first source)]
       (recur (rest source) (rest labels) (assoc acc (first labels) src))
       acc)))
@@ -46,19 +46,35 @@
 (defn task [row]
   (try
     (let [[link elems] row
+          id  (last (re-find #"^.*/(\w+)$" link))
           dom (fyte-util/fetch link)
-          names (names (take 3 elems))
+          names (names id (take 3 elems))
           basic (basic-info (take-last 8 elems))
           matches (fyte-details/matches dom)]
       (when (or (= matches []) (nil? matches))
-        (println (format ">>>>> LINK <<<<< %s" link))
-        (pprint/pprint names))
+        (println (format "LINK[%s]" link)))
       (merge names basic {"matches" matches}))
     (catch Exception e
       (println (format "TASK EXCEPTION: %s" e)))))
 
+(defn task [row]
+  (let [[link elems] row]
+    (try
+      (let [id  (last (re-find #"^.*/(\w+)$" link))
+           dom (fyte-util/fetch link)
+           names (names id (take 3 elems))
+           basic (basic-info (take-last 8 elems))
+           matches (fyte-details/matches dom)]
+        (when (or (= matches []) (nil? matches))
+          (println (format "LINK[%s]" link)))
+        (merge names basic {"matches" matches}))
+      (catch Exception e
+        (println (format "Error processing link[%s]: %s" link e))))))
+
 (defn assert-noerr [_]
   (if (nil? _) (System/exit 99) _))
+
+(def assert-noerr identity)
 
 (defn dequeue [csvc n]
   (loop [i 0
